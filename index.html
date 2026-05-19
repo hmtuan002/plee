@@ -10,6 +10,7 @@
 
     <div class="game-container">
     </div>
+
     <div class="player-info">
       <div>
         <label for="player-name">Your Name</label>
@@ -18,6 +19,10 @@
       <div>
         <button id="player-color">Change Color</button>
       </div>
+    </div>
+
+    <div class="controls-hint">
+      🕹 WASD / ↑↓←→ di chuyển &nbsp;|&nbsp; 🖱 Click để bắn &nbsp;|&nbsp; ❤️ HP: 100
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -37,7 +42,6 @@
       };
       firebase.initializeApp(firebaseConfig);
     </script>
-
 
     <script src="KeyPressListener.js"></script>
     <script src="app.js"></script>
