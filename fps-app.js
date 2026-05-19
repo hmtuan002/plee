@@ -498,16 +498,19 @@ function initFirebase() {
   const allPlayersRef = firebase.database().ref("fps_players");
   const allBulletsRef = firebase.database().ref("fps_bullets");
 
-  allPlayersRef.on("value", snap => {
-    const all = snap.val() || {};
-    Object.entries(all).forEach(([uid, p]) => {
-      if (uid === playerId) return;
-      remotePlayers[uid] = p;
-    });
-    // Remove disconnected
-    Object.keys(remotePlayers).forEach(uid => {
-      if (!all[uid]) delete remotePlayers[uid];
-    });
+  allPlayersRef.on("child_added", snap => {
+    const p = snap.val();
+    if (!p || snap.key === playerId) return;
+    remotePlayers[snap.key] = p;
+  });
+  allPlayersRef.on("child_changed", snap => {
+    const p = snap.val();
+    if (!p || snap.key === playerId) return;
+    remotePlayers[snap.key] = p;
+  });
+  allPlayersRef.on("child_removed", snap => {
+    delete remotePlayers[snap.key];
+    if (spriteEls[snap.key]) { spriteEls[snap.key].remove(); delete spriteEls[snap.key]; }
   });
 
   allBulletsRef.on("child_added", snap => {
@@ -568,6 +571,84 @@ function handleDeath() {
   }, 3000);
 }
 
+// ─── MINIMAP ──────────────────────────────────────────────────
+const MM_SIZE   = 140; // px
+const MM_CELL   = MM_SIZE / MAP_W;
+const MM_MARGIN = 16;
+
+function drawMinimap() {
+  const ox = W - MM_SIZE - MM_MARGIN;
+  const oy = H - MM_SIZE - MM_MARGIN;
+
+  // Background
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(ox - 2, oy - 2, MM_SIZE + 4, MM_SIZE + 4);
+
+  // Walls
+  for (let row = 0; row < MAP_H; row++) {
+    for (let col = 0; col < MAP_W; col++) {
+      const cell = MAP[row][col];
+      if (cell > 0) {
+        const wallColors = ["#000","#6b3a1f","#1a3d88","#882211","#144d28"];
+        ctx.fillStyle = wallColors[cell] || "#444";
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.06)";
+      }
+      ctx.fillRect(ox + col * MM_CELL, oy + row * MM_CELL, MM_CELL, MM_CELL);
+    }
+  }
+
+  // Remote players — dot + tiny name
+  const colorMap = {
+    blue:"#3366ff", red:"#ff4444", orange:"#ff8800",
+    yellow:"#ffee00", green:"#33ff66", purple:"#cc44ff"
+  };
+  Object.values(remotePlayers).forEach(rp => {
+    if (rp.hp <= 0) return;
+    const rx = ox + rp.x * MM_CELL;
+    const ry = oy + rp.y * MM_CELL;
+    ctx.fillStyle = colorMap[rp.color] || "#fff";
+    ctx.beginPath();
+    ctx.arc(rx, ry, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // direction tick
+    ctx.strokeStyle = colorMap[rp.color] || "#fff";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + Math.cos(rp.angle) * 6, ry + Math.sin(rp.angle) * 6);
+    ctx.stroke();
+    // name
+    ctx.fillStyle = "#fff";
+    ctx.font = "7px 'Share Tech Mono', monospace";
+    ctx.fillText((rp.name || "?").slice(0,8), rx + 4, ry - 3);
+  });
+
+  // Self — white dot with FOV cone
+  const mx = ox + me.x * MM_CELL;
+  const my = oy + me.y * MM_CELL;
+  const coneLen = 18;
+  ctx.strokeStyle = "rgba(0,255,231,0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(mx, my);
+  ctx.lineTo(mx + Math.cos(me.angle - FOV/2) * coneLen, my + Math.sin(me.angle - FOV/2) * coneLen);
+  ctx.moveTo(mx, my);
+  ctx.lineTo(mx + Math.cos(me.angle + FOV/2) * coneLen, my + Math.sin(me.angle + FOV/2) * coneLen);
+  ctx.stroke();
+
+  ctx.fillStyle = "#00ffe7";
+  ctx.beginPath();
+  ctx.arc(mx, my, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Player count label
+  const total = Object.keys(remotePlayers).length;
+  ctx.fillStyle = "rgba(0,255,231,0.6)";
+  ctx.font = "8px 'Share Tech Mono', monospace";
+  ctx.fillText(`${total} player${total !== 1 ? "s" : ""} online`, ox, oy - 4);
+}
+
 // ─── MAIN LOOP ────────────────────────────────────────────────
 let lastTime = 0;
 function loop(ts) {
@@ -586,6 +667,7 @@ function loop(ts) {
   drawScene();
   drawBullets();
   updateSprites();
+  drawMinimap();
   updateHUD();
 
   requestAnimationFrame(loop);
