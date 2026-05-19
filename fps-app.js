@@ -72,6 +72,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x111122, 10, 60);
 
 const camera = new THREE.PerspectiveCamera(80, 1, 0.05, 80);
+camera.rotation.order = "YXZ"; // Set once - prevents gimbal lock and per-frame overhead
 scene.add(camera);
 
 function resize() {
@@ -634,6 +635,12 @@ let joyX = 0, joyZ = 0;
 function movePlayer(dt) {
   if (isDead) return;
 
+  // Apply accumulated mouse input this frame
+  me.yaw   -= mouseDX * MOUSE_SENS;
+  me.pitch -= mouseDY * MOUSE_SENS;
+  mouseDX = 0;
+  mouseDY = 0;
+
   // Horizontal movement
   let moveX = 0, moveZ = 0;
   const cos = Math.cos(me.yaw), sin = Math.sin(me.yaw);
@@ -691,7 +698,6 @@ function movePlayer(dt) {
 
   // Update camera
   camera.position.set(me.x, me.y, me.z);
-  camera.rotation.order = "YXZ";
   camera.rotation.y = me.yaw;
   camera.rotation.x = me.pitch;
 }
@@ -819,10 +825,12 @@ document.addEventListener("pointerlockchange", () => {
   pointerLocked = document.pointerLockElement === canvas;
 });
 
+// Accumulate mouse deltas between frames to prevent jitter
+let mouseDX = 0, mouseDY = 0;
 document.addEventListener("mousemove", e => {
   if (!pointerLocked) return;
-  me.yaw   -= e.movementX * MOUSE_SENS;
-  me.pitch -= e.movementY * MOUSE_SENS;
+  mouseDX += e.movementX;
+  mouseDY += e.movementY;
 });
 
 let lastShot = 0;
@@ -953,7 +961,7 @@ document.getElementById("btn-weapon").addEventListener("touchstart", e => {
 let playerRef = null, playerId = null;
 
 function initFirebase() {
-  const allPlayersRef = firebase.database().ref("fps3d_players");
+  const allPlayersRef = firebase.database().ref("fps_players");
   const allBulletsRef = firebase.database().ref("fps_bullets");
 
   allPlayersRef.on("child_added",   snap => { if (snap.key !== playerId) remotePlayers[snap.key] = snap.val(); });
@@ -1082,7 +1090,7 @@ function startGame() {
     me.x = spot.x; me.z = spot.z; me.y = PLAYER_H;
     me.yaw = Math.random() * Math.PI * 2;
 
-    playerRef = firebase.database().ref(`fps3d_players/${playerId}`);
+    playerRef = firebase.database().ref(`fps_players/${playerId}`);
     playerRef.set({
       id: playerId, x: me.x, y: me.y, z: me.z,
       yaw: me.yaw, hp: 100, coins: 0,
