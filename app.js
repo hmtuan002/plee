@@ -174,10 +174,14 @@ function getRandomSafeSpot() {
     });
   }
 
-  // Local bullet animation loop
+  // Mỗi client TỰ phát hiện đạn trúng mình → tự update HP của mình
+  // (Firebase rules chỉ cho phép ghi vào node của chính mình)
+  const hitBullets = new Set();
+
   function animateBullets() {
-    const SPEED = 2.5; // px per frame (game-coords, before scale)
+    const SPEED = 2.5;
     const MAX_DIST = 300;
+    const me = players[playerId];
 
     Object.entries(bulletElements).forEach(([id, bulletData]) => {
       const { el, startX, startY, vx, vy, traveledRef, ownerId } = bulletData;
@@ -187,30 +191,33 @@ function getRandomSafeSpot() {
 
       el.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
 
-      // Check wall collision
+      // Trúng tường hoặc bay quá xa → người bắn xóa đạn
       const tileX = Math.floor(cx / CELL_SIZE);
       const tileY = Math.floor(cy / CELL_SIZE);
       if (isSolid(tileX, tileY) || traveledRef.v > MAX_DIST) {
-        firebase.database().ref(`bullets/${id}`).remove();
+        if (ownerId === playerId) {
+          firebase.database().ref(`bullets/${id}`).remove();
+        }
         return;
       }
 
-      // Chỉ người bắn mới xử lý damage (tránh duplicate)
-      if (ownerId !== playerId) return;
+      // Mỗi client chỉ kiểm tra đạn người khác bắn có trúng mình không
+      if (ownerId === playerId) return;   // đạn mình bắn
+      if (!me || me.hp <= 0) return;      // mình đang chết
+      if (hitBullets.has(id)) return;     // đã nhận damage viên này rồi
 
-      // Check player collision
-      Object.entries(players).forEach(([pid, p]) => {
-        if (pid === ownerId) return;   // không tự bắn mình
-        if (p.hp <= 0) return;
-        const px = p.x * CELL_SIZE + CELL_SIZE / 2;
-        const py = p.y * CELL_SIZE + CELL_SIZE / 2;
-        const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2);
-        if (dist < 8) {
-          firebase.database().ref(`bullets/${id}`).remove();
-          const newHp = Math.max(0, (p.hp ?? 100) - BULLET_DAMAGE);
-          firebase.database().ref(`players/${pid}`).update({ hp: newHp });
-        }
-      });
+      const myPx = me.x * CELL_SIZE + CELL_SIZE / 2;
+      const myPy = me.y * CELL_SIZE + CELL_SIZE / 2;
+      const dist = Math.sqrt((cx - myPx) ** 2 + (cy - myPy) ** 2);
+
+      if (dist < 8) {
+        hitBullets.add(id);
+        // Tự ghi HP của mình (có quyền)
+        const newHp = Math.max(0, (me.hp ?? 100) - BULLET_DAMAGE);
+        playerRef.update({ hp: newHp });
+        // Đánh dấu để người bắn xóa đạn
+        firebase.database().ref(`bullets/${id}/hitTarget`).set(playerId);
+      }
     });
 
     requestAnimationFrame(animateBullets);
@@ -368,6 +375,15 @@ function getRandomSafeSpot() {
         ownerId: b.ownerId,
         traveledRef: { v: 0 },
       };
+
+      // Nếu đây là đạn của mình, lắng nghe hitTarget để xóa đạn khi trúng người
+      if (b.ownerId === playerId) {
+        firebase.database().ref(`bullets/${b.id}/hitTarget`).on("value", (snap) => {
+          if (snap.val()) {
+            firebase.database().ref(`bullets/${b.id}`).remove();
+          }
+        });
+      }
     });
     allBulletsRef.on("child_removed", (snapshot) => {
       const id = snapshot.val()?.id || snapshot.key;
