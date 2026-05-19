@@ -19,10 +19,8 @@ const mapData = {
   },
 };
 
-// Options for Player Colors... these are in the same order as our sprite sheet
 const playerColors = ["blue", "red", "orange", "yellow", "green", "purple"];
 
-//Misc Helpers
 function randomFromArray(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
@@ -32,46 +30,17 @@ function getKeyString(x, y) {
 
 function createName() {
   const prefix = randomFromArray([
-    "COOL",
-    "SUPER",
-    "HIP",
-    "SMUG",
-    "COOL",
-    "SILKY",
-    "GOOD",
-    "SAFE",
-    "DEAR",
-    "DAMP",
-    "WARM",
-    "RICH",
-    "LONG",
-    "DARK",
-    "SOFT",
-    "BUFF",
-    "DOPE",
+    "COOL","SUPER","HIP","SMUG","COOL","SILKY","GOOD","SAFE","DEAR",
+    "DAMP","WARM","RICH","LONG","DARK","SOFT","BUFF","DOPE",
   ]);
   const animal = randomFromArray([
-    "BEAR",
-    "DOG",
-    "CAT",
-    "FOX",
-    "LAMB",
-    "LION",
-    "BOAR",
-    "GOAT",
-    "VOLE",
-    "SEAL",
-    "PUMA",
-    "MULE",
-    "BULL",
-    "BIRD",
-    "BUG",
+    "BEAR","DOG","CAT","FOX","LAMB","LION","BOAR","GOAT","VOLE",
+    "SEAL","PUMA","MULE","BULL","BIRD","BUG",
   ]);
   return `${prefix} ${animal}`;
 }
 
-function isSolid(x,y) {
-
+function isSolid(x, y) {
   const blockedNextSpace = mapData.blockedSpaces[getKeyString(x, y)];
   return (
     blockedNextSpace ||
@@ -79,132 +48,259 @@ function isSolid(x,y) {
     x < mapData.minX ||
     y >= mapData.maxY ||
     y < mapData.minY
-  )
+  );
 }
 
 function getRandomSafeSpot() {
-  //We don't look things up by key here, so just return an x/y
   return randomFromArray([
-    { x: 1, y: 4 },
-    { x: 2, y: 4 },
-    { x: 1, y: 5 },
-    { x: 2, y: 6 },
-    { x: 2, y: 8 },
-    { x: 2, y: 9 },
-    { x: 4, y: 8 },
-    { x: 5, y: 5 },
-    { x: 5, y: 8 },
-    { x: 5, y: 10 },
-    { x: 5, y: 11 },
-    { x: 11, y: 7 },
-    { x: 12, y: 7 },
-    { x: 13, y: 7 },
-    { x: 13, y: 6 },
-    { x: 13, y: 8 },
-    { x: 7, y: 6 },
-    { x: 7, y: 7 },
-    { x: 7, y: 8 },
-    { x: 8, y: 8 },
-    { x: 10, y: 8 },
-    { x: 8, y: 8 },
-    { x: 11, y: 4 },
+    { x: 1, y: 4 },{ x: 2, y: 4 },{ x: 1, y: 5 },{ x: 2, y: 6 },
+    { x: 2, y: 8 },{ x: 2, y: 9 },{ x: 4, y: 8 },{ x: 5, y: 5 },
+    { x: 5, y: 8 },{ x: 5, y: 10 },{ x: 5, y: 11 },{ x: 11, y: 7 },
+    { x: 12, y: 7 },{ x: 13, y: 7 },{ x: 13, y: 6 },{ x: 13, y: 8 },
+    { x: 7, y: 6 },{ x: 7, y: 7 },{ x: 7, y: 8 },{ x: 8, y: 8 },
+    { x: 10, y: 8 },{ x: 8, y: 8 },{ x: 11, y: 4 },
   ]);
 }
 
-
 (function () {
-
   let playerId;
   let playerRef;
   let players = {};
   let playerElements = {};
   let coins = {};
   let coinElements = {};
+  let bullets = {};
+  let bulletElements = {};
+
+  // WASD key state
+  const keysDown = {};
 
   const gameContainer = document.querySelector(".game-container");
   const playerNameInput = document.querySelector("#player-name");
   const playerColorButton = document.querySelector("#player-color");
 
+  // ─── Coins ───────────────────────────────────────────────────────────────────
 
   function placeCoin() {
     const { x, y } = getRandomSafeSpot();
     const coinRef = firebase.database().ref(`coins/${getKeyString(x, y)}`);
-    coinRef.set({
-      x,
-      y,
-    })
-
+    coinRef.set({ x, y });
     const coinTimeouts = [2000, 3000, 4000, 5000];
-    setTimeout(() => {
-      placeCoin();
-    }, randomFromArray(coinTimeouts));
+    setTimeout(() => { placeCoin(); }, randomFromArray(coinTimeouts));
   }
 
   function attemptGrabCoin(x, y) {
     const key = getKeyString(x, y);
     if (coins[key]) {
-      // Remove this key from data, then uptick Player's coin count
       firebase.database().ref(`coins/${key}`).remove();
-      playerRef.update({
-        coins: players[playerId].coins + 1,
-      })
+      playerRef.update({ coins: players[playerId].coins + 1 });
     }
   }
 
+  // ─── Movement ─────────────────────────────────────────────────────────────────
 
-  function handleArrowPress(xChange=0, yChange=0) {
+  function handleMove(xChange = 0, yChange = 0) {
+    if (!players[playerId] || players[playerId].hp <= 0) return;
     const newX = players[playerId].x + xChange;
     const newY = players[playerId].y + yChange;
     if (!isSolid(newX, newY)) {
-      //move to the next space
       players[playerId].x = newX;
       players[playerId].y = newY;
-      if (xChange === 1) {
-        players[playerId].direction = "right";
-      }
-      if (xChange === -1) {
-        players[playerId].direction = "left";
-      }
+      if (xChange === 1)  players[playerId].direction = "right";
+      if (xChange === -1) players[playerId].direction = "left";
       playerRef.set(players[playerId]);
       attemptGrabCoin(newX, newY);
     }
   }
 
+  // WASD continuous movement loop
+  let lastMoveTime = 0;
+  const MOVE_INTERVAL = 200; // ms between steps
+
+  function wasdLoop(timestamp) {
+    if (timestamp - lastMoveTime >= MOVE_INTERVAL) {
+      if (keysDown["KeyW"] || keysDown["ArrowUp"])    handleMove(0, -1);
+      if (keysDown["KeyS"] || keysDown["ArrowDown"])  handleMove(0, 1);
+      if (keysDown["KeyA"] || keysDown["ArrowLeft"])  handleMove(-1, 0);
+      if (keysDown["KeyD"] || keysDown["ArrowRight"]) handleMove(1, 0);
+      if (Object.values(keysDown).some(Boolean)) lastMoveTime = timestamp;
+    }
+    requestAnimationFrame(wasdLoop);
+  }
+
+  // ─── Bullets ──────────────────────────────────────────────────────────────────
+
+  const BULLET_DAMAGE = 10;
+  const BULLET_SPEED  = 80; // px per step in game-world (16px = 1 tile)
+  // Bullet travels in real-px coords but we translate to tile for hit detection
+  const CELL_SIZE = 16;
+
+  /**
+   * Convert game container mouse position → game tile coords
+   */
+  function getMouseTile(e) {
+    const rect = gameContainer.getBoundingClientRect();
+    const scale = rect.width / 240; // game-container is 240px wide, scaled 3×
+    const px = (e.clientX - rect.left) / scale;
+    const py = (e.clientY - rect.top)  / scale;
+    return { px, py };
+  }
+
+  function shootBullet(e) {
+    if (!players[playerId] || players[playerId].hp <= 0) return;
+
+    const me = players[playerId];
+    // Origin: center of player tile
+    const originPx = me.x * CELL_SIZE + CELL_SIZE / 2;
+    const originPy = me.y * CELL_SIZE + CELL_SIZE / 2;
+
+    const { px: targetPx, py: targetPy } = getMouseTile(e);
+
+    const dx = targetPx - originPx;
+    const dy = targetPy - originPy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const vx = dx / len; // normalised direction
+    const vy = dy / len;
+
+    const bulletId = firebase.database().ref("bullets").push().key;
+    firebase.database().ref(`bullets/${bulletId}`).set({
+      id: bulletId,
+      ownerId: playerId,
+      x: originPx,
+      y: originPy,
+      vx,
+      vy,
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+    });
+  }
+
+  // Local bullet animation loop
+  function animateBullets() {
+    const SPEED = 2.5; // px per frame (game-coords, before scale)
+    const MAX_DIST = 300;
+
+    Object.entries(bulletElements).forEach(([id, { el, startX, startY, vx, vy, traveledRef }]) => {
+      traveledRef.v += SPEED;
+      const cx = startX + vx * traveledRef.v;
+      const cy = startY + vy * traveledRef.v;
+
+      el.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
+
+      // Check wall collision
+      const tileX = Math.floor(cx / CELL_SIZE);
+      const tileY = Math.floor(cy / CELL_SIZE);
+      if (isSolid(tileX, tileY) || traveledRef.v > MAX_DIST) {
+        // Remove bullet
+        firebase.database().ref(`bullets/${id}`).remove();
+        return;
+      }
+
+      // Check player collision
+      Object.entries(players).forEach(([pid, p]) => {
+        if (pid === bulletElements[id]?.ownerId) return;
+        if (p.hp <= 0) return;
+        const px = p.x * CELL_SIZE + CELL_SIZE / 2;
+        const py = p.y * CELL_SIZE + CELL_SIZE / 2;
+        const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2);
+        if (dist < 8) {
+          firebase.database().ref(`bullets/${id}`).remove();
+          // Only the bullet owner deals damage to avoid duplicate writes
+          if (bulletElements[id]?.ownerId === playerId) {
+            const newHp = Math.max(0, (p.hp ?? 100) - BULLET_DAMAGE);
+            firebase.database().ref(`players/${pid}`).update({ hp: newHp });
+          }
+        }
+      });
+    });
+
+    requestAnimationFrame(animateBullets);
+  }
+
+  // ─── HP & Respawn ─────────────────────────────────────────────────────────────
+
+  function handleDeath(pid) {
+    if (pid !== playerId) return; // only handle our own death locally
+    setTimeout(() => {
+      const { x, y } = getRandomSafeSpot();
+      playerRef.update({ hp: 100, x, y });
+    }, 3000); // 3 second respawn
+  }
+
+  // ─── DOM helpers ──────────────────────────────────────────────────────────────
+
+  function updateHpBar(el, hp) {
+    const bar = el.querySelector(".Character_hp-bar-fill");
+    if (bar) {
+      const pct = Math.max(0, Math.min(100, hp ?? 100));
+      bar.style.width = pct + "%";
+      bar.style.background = pct > 50 ? "#59ff5a" : pct > 25 ? "#ffcc00" : "#ff3333";
+    }
+    // Grey out dead players
+    const sprite = el.querySelector(".Character_sprite");
+    if (sprite) sprite.style.opacity = (hp <= 0) ? "0.3" : "1";
+  }
+
+  // ─── Game Init ────────────────────────────────────────────────────────────────
+
   function initGame() {
 
-    new KeyPressListener("ArrowUp", () => handleArrowPress(0, -1))
-    new KeyPressListener("ArrowDown", () => handleArrowPress(0, 1))
-    new KeyPressListener("ArrowLeft", () => handleArrowPress(-1, 0))
-    new KeyPressListener("ArrowRight", () => handleArrowPress(1, 0))
+    // Arrow keys (legacy)
+    new KeyPressListener("ArrowUp",    () => handleMove(0, -1));
+    new KeyPressListener("ArrowDown",  () => handleMove(0, 1));
+    new KeyPressListener("ArrowLeft",  () => handleMove(-1, 0));
+    new KeyPressListener("ArrowRight", () => handleMove(1, 0));
 
-    const allPlayersRef = firebase.database().ref(`players`);
-    const allCoinsRef = firebase.database().ref(`coins`);
+    // WASD — track held state
+    document.addEventListener("keydown", (e) => {
+      if (["KeyW","KeyA","KeyS","KeyD"].includes(e.code)) {
+        keysDown[e.code] = true;
+      }
+    });
+    document.addEventListener("keyup", (e) => {
+      keysDown[e.code] = false;
+    });
+    requestAnimationFrame(wasdLoop);
 
+    // Shooting
+    gameContainer.addEventListener("click", shootBullet);
+
+    // Firebase refs
+    const allPlayersRef = firebase.database().ref("players");
+    const allCoinsRef   = firebase.database().ref("coins");
+    const allBulletsRef = firebase.database().ref("bullets");
+
+    // ── Players ──
     allPlayersRef.on("value", (snapshot) => {
-      //Fires whenever a change occurs
       players = snapshot.val() || {};
       Object.keys(players).forEach((key) => {
-        const characterState = players[key];
-        let el = playerElements[key];
-        // Now update the DOM
-        el.querySelector(".Character_name").innerText = characterState.name;
-        el.querySelector(".Character_coins").innerText = characterState.coins;
-        el.setAttribute("data-color", characterState.color);
-        el.setAttribute("data-direction", characterState.direction);
-        const left = 16 * characterState.x + "px";
-        const top = 16 * characterState.y - 4 + "px";
-        el.style.transform = `translate3d(${left}, ${top}, 0)`;
-      })
-    })
+        const s = players[key];
+        const el = playerElements[key];
+        if (!el) return;
+        el.querySelector(".Character_name").innerText  = s.name;
+        el.querySelector(".Character_coins").innerText = s.coins;
+        el.setAttribute("data-color",     s.color);
+        el.setAttribute("data-direction", s.direction);
+        el.style.transform = `translate3d(${16 * s.x}px, ${16 * s.y - 4}px, 0)`;
+        updateHpBar(el, s.hp ?? 100);
+
+        // Death event
+        if (s.hp <= 0 && key === playerId) {
+          if (!el.dataset.dead) {
+            el.dataset.dead = "true";
+            handleDeath(key);
+          }
+        } else {
+          delete el.dataset.dead;
+        }
+      });
+    });
+
     allPlayersRef.on("child_added", (snapshot) => {
-      //Fires whenever a new node is added the tree
-      const addedPlayer = snapshot.val();
-      const characterElement = document.createElement("div");
-      characterElement.classList.add("Character", "grid-cell");
-      if (addedPlayer.id === playerId) {
-        characterElement.classList.add("you");
-      }
-      characterElement.innerHTML = (`
+      const p = snapshot.val();
+      const el = document.createElement("div");
+      el.classList.add("Character", "grid-cell");
+      if (p.id === playerId) el.classList.add("you");
+      el.innerHTML = `
         <div class="Character_shadow grid-cell"></div>
         <div class="Character_sprite grid-cell"></div>
         <div class="Character_name-container">
@@ -212,101 +308,117 @@ function getRandomSafeSpot() {
           <span class="Character_coins">0</span>
         </div>
         <div class="Character_you-arrow"></div>
-      `);
-      playerElements[addedPlayer.id] = characterElement;
+        <div class="Character_hp-bar">
+          <div class="Character_hp-bar-fill"></div>
+        </div>
+      `;
+      playerElements[p.id] = el;
+      el.querySelector(".Character_name").innerText  = p.name;
+      el.querySelector(".Character_coins").innerText = p.coins;
+      el.setAttribute("data-color",     p.color);
+      el.setAttribute("data-direction", p.direction);
+      el.style.transform = `translate3d(${16 * p.x}px, ${16 * p.y - 4}px, 0)`;
+      updateHpBar(el, p.hp ?? 100);
+      gameContainer.appendChild(el);
+    });
 
-      //Fill in some initial state
-      characterElement.querySelector(".Character_name").innerText = addedPlayer.name;
-      characterElement.querySelector(".Character_coins").innerText = addedPlayer.coins;
-      characterElement.setAttribute("data-color", addedPlayer.color);
-      characterElement.setAttribute("data-direction", addedPlayer.direction);
-      const left = 16 * addedPlayer.x + "px";
-      const top = 16 * addedPlayer.y - 4 + "px";
-      characterElement.style.transform = `translate3d(${left}, ${top}, 0)`;
-      gameContainer.appendChild(characterElement);
-    })
-
-
-    //Remove character DOM element after they leave
     allPlayersRef.on("child_removed", (snapshot) => {
       const removedKey = snapshot.val().id;
-      gameContainer.removeChild(playerElements[removedKey]);
-      delete playerElements[removedKey];
-    })
-
-
-    //New - not in the video!
-    //This block will remove coins from local state when Firebase `coins` value updates
-    allCoinsRef.on("value", (snapshot) => {
-      coins = snapshot.val() || {};
+      if (playerElements[removedKey]) {
+        gameContainer.removeChild(playerElements[removedKey]);
+        delete playerElements[removedKey];
+      }
     });
-    //
 
+    // ── Coins ──
+    allCoinsRef.on("value", (snapshot) => { coins = snapshot.val() || {}; });
     allCoinsRef.on("child_added", (snapshot) => {
       const coin = snapshot.val();
       const key = getKeyString(coin.x, coin.y);
       coins[key] = true;
-
-      // Create the DOM Element
-      const coinElement = document.createElement("div");
-      coinElement.classList.add("Coin", "grid-cell");
-      coinElement.innerHTML = `
-        <div class="Coin_shadow grid-cell"></div>
-        <div class="Coin_sprite grid-cell"></div>
-      `;
-
-      // Position the Element
-      const left = 16 * coin.x + "px";
-      const top = 16 * coin.y - 4 + "px";
-      coinElement.style.transform = `translate3d(${left}, ${top}, 0)`;
-
-      // Keep a reference for removal later and add to DOM
-      coinElements[key] = coinElement;
-      gameContainer.appendChild(coinElement);
-    })
+      const el = document.createElement("div");
+      el.classList.add("Coin", "grid-cell");
+      el.innerHTML = `<div class="Coin_shadow grid-cell"></div><div class="Coin_sprite grid-cell"></div>`;
+      el.style.transform = `translate3d(${16 * coin.x}px, ${16 * coin.y - 4}px, 0)`;
+      coinElements[key] = el;
+      gameContainer.appendChild(el);
+    });
     allCoinsRef.on("child_removed", (snapshot) => {
-      const {x,y} = snapshot.val();
-      const keyToRemove = getKeyString(x,y);
-      gameContainer.removeChild( coinElements[keyToRemove] );
-      delete coinElements[keyToRemove];
-    })
+      const { x, y } = snapshot.val();
+      const key = getKeyString(x, y);
+      if (coinElements[key]) {
+        gameContainer.removeChild(coinElements[key]);
+        delete coinElements[key];
+      }
+    });
 
+    // ── Bullets ──
+    allBulletsRef.on("child_added", (snapshot) => {
+      const b = snapshot.val();
+      const el = document.createElement("div");
+      el.classList.add("Bullet", "grid-cell");
+      el.style.transform = `translate3d(${b.x}px, ${b.y}px, 0)`;
+      gameContainer.appendChild(el);
+      bulletElements[b.id] = {
+        el,
+        startX: b.x,
+        startY: b.y,
+        vx: b.vx,
+        vy: b.vy,
+        ownerId: b.ownerId,
+        traveledRef: { v: 0 },
+      };
+    });
+    allBulletsRef.on("child_removed", (snapshot) => {
+      const id = snapshot.val()?.id || snapshot.key;
+      if (bulletElements[id]) {
+        if (bulletElements[id].el.parentNode) {
+          gameContainer.removeChild(bulletElements[id].el);
+        }
+        delete bulletElements[id];
+      }
+    });
 
-    //Updates player name with text input
+    // Clean up stale bullets (older than 5s) — run every 5s
+    setInterval(() => {
+      const now = Date.now();
+      firebase.database().ref("bullets").once("value", (snap) => {
+        const all = snap.val() || {};
+        Object.entries(all).forEach(([id, b]) => {
+          if (now - b.createdAt > 5000) {
+            firebase.database().ref(`bullets/${id}`).remove();
+          }
+        });
+      });
+    }, 5000);
+
+    requestAnimationFrame(animateBullets);
+
+    // ── UI controls ──
     playerNameInput.addEventListener("change", (e) => {
       const newName = e.target.value || createName();
       playerNameInput.value = newName;
-      playerRef.update({
-        name: newName
-      })
-    })
-
-    //Update player color on button click
+      playerRef.update({ name: newName });
+    });
     playerColorButton.addEventListener("click", () => {
       const mySkinIndex = playerColors.indexOf(players[playerId].color);
       const nextColor = playerColors[mySkinIndex + 1] || playerColors[0];
-      playerRef.update({
-        color: nextColor
-      })
-    })
+      playerRef.update({ color: nextColor });
+    });
 
-    //Place my first coin
     placeCoin();
-
   }
 
+  // ─── Auth ─────────────────────────────────────────────────────────────────────
+
   firebase.auth().onAuthStateChanged((user) => {
-    console.log(user)
     if (user) {
-      //You're logged in!
       playerId = user.uid;
       playerRef = firebase.database().ref(`players/${playerId}`);
 
       const name = createName();
       playerNameInput.value = name;
-
-      const {x, y} = getRandomSafeSpot();
-
+      const { x, y } = getRandomSafeSpot();
 
       playerRef.set({
         id: playerId,
@@ -316,24 +428,16 @@ function getRandomSafeSpot() {
         x,
         y,
         coins: 0,
-      })
+        hp: 100,
+      });
 
-      //Remove me from Firebase when I diconnect
       playerRef.onDisconnect().remove();
-
-      //Begin the game now that we are signed in
       initGame();
-    } else {
-      //You're logged out.
     }
-  })
-
-  firebase.auth().signInAnonymously().catch((error) => {
-    var errorCode = error.code;
-    var errorMessage = error.message;
-    // ...
-    console.log(errorCode, errorMessage);
   });
 
+  firebase.auth().signInAnonymously().catch((error) => {
+    console.log(error.code, error.message);
+  });
 
 })();
