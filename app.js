@@ -179,7 +179,8 @@ function getRandomSafeSpot() {
     const SPEED = 2.5; // px per frame (game-coords, before scale)
     const MAX_DIST = 300;
 
-    Object.entries(bulletElements).forEach(([id, { el, startX, startY, vx, vy, traveledRef }]) => {
+    Object.entries(bulletElements).forEach(([id, bulletData]) => {
+      const { el, startX, startY, vx, vy, traveledRef, ownerId } = bulletData;
       traveledRef.v += SPEED;
       const cx = startX + vx * traveledRef.v;
       const cy = startY + vy * traveledRef.v;
@@ -190,25 +191,24 @@ function getRandomSafeSpot() {
       const tileX = Math.floor(cx / CELL_SIZE);
       const tileY = Math.floor(cy / CELL_SIZE);
       if (isSolid(tileX, tileY) || traveledRef.v > MAX_DIST) {
-        // Remove bullet
         firebase.database().ref(`bullets/${id}`).remove();
         return;
       }
 
+      // Chỉ người bắn mới xử lý damage (tránh duplicate)
+      if (ownerId !== playerId) return;
+
       // Check player collision
       Object.entries(players).forEach(([pid, p]) => {
-        if (pid === bulletElements[id]?.ownerId) return;
+        if (pid === ownerId) return;   // không tự bắn mình
         if (p.hp <= 0) return;
         const px = p.x * CELL_SIZE + CELL_SIZE / 2;
         const py = p.y * CELL_SIZE + CELL_SIZE / 2;
         const dist = Math.sqrt((cx - px) ** 2 + (cy - py) ** 2);
         if (dist < 8) {
           firebase.database().ref(`bullets/${id}`).remove();
-          // Only the bullet owner deals damage to avoid duplicate writes
-          if (bulletElements[id]?.ownerId === playerId) {
-            const newHp = Math.max(0, (p.hp ?? 100) - BULLET_DAMAGE);
-            firebase.database().ref(`players/${pid}`).update({ hp: newHp });
-          }
+          const newHp = Math.max(0, (p.hp ?? 100) - BULLET_DAMAGE);
+          firebase.database().ref(`players/${pid}`).update({ hp: newHp });
         }
       });
     });
