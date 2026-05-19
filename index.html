@@ -3,386 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <title>VÂN LÔ RẦN — Chiến Trường 3D</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --cyan: #00ffe7;
-      --red: #ff2222;
-      --gold: #ffcc00;
-      --green: #59ff5a;
-      --bg: #000;
-    }
-
-    html, body {
-      width: 100%; height: 100%; overflow: hidden;
-      background: #000;
-      font-family: 'Share Tech Mono', monospace;
-      cursor: none;
-    }
-
-    #vlr-canvas {
-      display: block;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-    }
-
-    /* ── HUD ── */
-    #hud {
-      position: fixed; inset: 0;
-      pointer-events: none; z-index: 10;
-    }
-
-    #hud-top {
-      position: absolute; top: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: flex-start;
-      padding: 14px 20px;
-    }
-
-    #hud-name {
-      font-family: 'Orbitron', monospace;
-      font-size: 13px; font-weight: 700;
-      color: var(--cyan); letter-spacing: 0.2em;
-      text-shadow: 0 0 8px #00ffe7aa;
-      text-transform: uppercase;
-    }
-
-    #hud-title-badge {
-      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-      font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 900;
-      color: var(--gold); letter-spacing: 0.3em;
-      text-shadow: 0 0 10px #ffcc00aa;
-      text-transform: uppercase;
-      opacity: 0.7;
-    }
-
-    #hud-kill-feed {
-      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-    }
-    .kill-entry {
-      font-size: 12px; color: var(--red);
-      background: rgba(0,0,0,0.55);
-      padding: 2px 8px; border-left: 2px solid var(--red);
-      animation: feedFade 4s forwards;
-      text-shadow: 0 0 6px #ff4444aa;
-    }
-    @keyframes feedFade {
-      0%   { opacity: 1; transform: translateX(20px); }
-      80%  { opacity: 1; transform: translateX(0); }
-      100% { opacity: 0; }
-    }
-
-    /* Bottom HUD */
-    #hud-bottom {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 0 24px 18px;
-    }
-
-    #hud-hp-block { display: flex; align-items: center; gap: 8px; }
-    #hud-hp-label {
-      font-family: 'Orbitron', monospace; font-size: 11px;
-      color: #aaa; letter-spacing: 0.15em;
-    }
-    #hud-hp-bar-wrap {
-      width: 140px; height: 8px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 2px; overflow: hidden;
-    }
-    #hud-hp-bar {
-      height: 100%; width: 100%;
-      background: linear-gradient(90deg, var(--green), #a8ff78);
-      transition: width 0.3s, background 0.3s; border-radius: 2px;
-    }
-    #hud-hp-num {
-      font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 900;
-      color: var(--green); text-shadow: 0 0 10px #59ff5a99; min-width: 38px;
-    }
-
-    #hud-coins-block, #hud-ammo-block {
-      font-family: 'Orbitron', monospace; font-size: 16px; font-weight: 700;
-      color: #fff; display: flex; align-items: center; gap: 6px;
-    }
-    #hud-coins-icon { color: gold; text-shadow: 0 0 8px gold; font-size: 18px; }
-    #hud-coins-num  { color: gold; }
-    #hud-ammo-icon  { color: var(--cyan); font-size: 16px; }
-    #hud-ammo-num   { color: var(--cyan); }
-
-    /* Crosshair */
-    #crosshair {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 24px; height: 24px;
-    }
-    .ch-line { position: absolute; background: rgba(255,255,255,0.85); }
-    .ch-top, .ch-bot { width: 2px; height: 7px; left: 50%; transform: translateX(-50%); }
-    .ch-top { top: 0; } .ch-bot { bottom: 0; }
-    .ch-left, .ch-right { width: 7px; height: 2px; top: 50%; transform: translateY(-50%); }
-    .ch-left { left: 0; } .ch-right { right: 0; }
-    .ch-dot {
-      position: absolute; width: 2px; height: 2px; background: #fff;
-      top: 50%; left: 50%; transform: translate(-50%,-50%);
-    }
-
-    /* Damage flash */
-    #damage-flash {
-      position: absolute; inset: 0;
-      background: rgba(255,0,0,0); pointer-events: none;
-    }
-    #damage-flash.hit { animation: dmgFlash 0.4s forwards; }
-    @keyframes dmgFlash {
-      0%   { background: rgba(255,0,0,0.45); }
-      100% { background: rgba(255,0,0,0); }
-    }
-
-    /* Death screen */
-    #death-screen {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.78);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
-    }
-    #death-screen.hidden { display: none; }
-    #death-text {
-      font-family: 'Orbitron', monospace; font-size: 72px; font-weight: 900;
-      color: var(--red);
-      text-shadow: 0 0 40px #ff2222cc, 0 0 80px #ff222266;
-      letter-spacing: 0.15em; animation: glitch 0.5s infinite;
-    }
-    @keyframes glitch {
-      0%  { transform: translate(0,0); }
-      20% { transform: translate(-3px, 1px); }
-      40% { transform: translate(3px, -1px); }
-      60% { transform: translate(-2px, 2px); }
-      80% { transform: translate(2px, -2px); }
-      100%{ transform: translate(0,0); }
-    }
-    #death-sub {
-      font-family: 'Share Tech Mono', monospace; font-size: 18px;
-      color: #aaa; letter-spacing: 0.3em; animation: blink 1s step-end infinite;
-    }
-    @keyframes blink { 50% { opacity: 0; } }
-
-    /* Kill banner */
-    #kill-banner {
-      position: absolute; top: 35%; left: 50%; transform: translateX(-50%);
-      font-family: 'Orbitron', monospace; font-size: 22px; font-weight: 900;
-      color: var(--gold); text-shadow: 0 0 20px #ffcc00bb;
-      letter-spacing: 0.2em; background: rgba(0,0,0,0.6);
-      padding: 8px 24px; border: 1px solid #ffcc0044;
-      animation: killBannerAnim 2.5s forwards;
-    }
-    #kill-banner.hidden { display: none; }
-    @keyframes killBannerAnim {
-      0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-      15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-      80%  { opacity: 1; }
-      100% { opacity: 0; }
-    }
-
-    /* Minimap */
-    #minimap {
-      position: fixed; bottom: 80px; right: 16px;
-      width: 140px; height: 140px;
-      background: rgba(0,0,0,0.6);
-      border: 1px solid rgba(0,255,231,0.2);
-      z-index: 11; pointer-events: none;
-    }
-
-    /* Sprites layer */
-    #sprites-layer {
-      position: fixed; inset: 0; pointer-events: none; z-index: 5;
-    }
-    .enemy-label {
-      position: absolute; transform: translate(-50%, -100%);
-      font-family: 'Share Tech Mono', monospace; font-size: 11px;
-      color: #fff; background: rgba(0,0,0,0.6);
-      padding: 2px 5px; border-radius: 2px;
-      white-space: nowrap; pointer-events: none; transition: opacity 0.2s;
-    }
-    .enemy-label .elabel-hp { color: var(--green); margin-left: 4px; }
-
-    /* Login overlay */
-    #login-overlay {
-      position: fixed; inset: 0;
-      background: radial-gradient(ellipse at center, #0d1117 0%, #000 100%);
-      display: flex; align-items: center; justify-content: center; z-index: 100;
-    }
-    #login-overlay.hidden { display: none; }
-
-    #login-box { text-align: center; max-width: 460px; width: 90%; }
-
-    #login-title {
-      font-family: 'Orbitron', monospace; font-size: 52px; font-weight: 900;
-      color: #fff; letter-spacing: 0.08em; line-height: 1; margin-bottom: 4px;
-    }
-    #login-title .accent {
-      color: var(--cyan);
-      text-shadow: 0 0 30px #00ffe7cc, 0 0 60px #00ffe766;
-    }
-
-    #login-sub {
-      font-family: 'Share Tech Mono', monospace; font-size: 12px;
-      color: #444; letter-spacing: 0.25em; text-transform: uppercase;
-      margin-bottom: 36px;
-    }
-    #login-sub .highlight { color: var(--gold); }
-
-    #login-form { display: flex; flex-direction: column; gap: 12px; align-items: center; }
-
-    #player-name-input {
-      width: 100%; background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(0,255,231,0.25); color: #fff;
-      font-family: 'Orbitron', monospace; font-size: 15px; font-weight: 700;
-      padding: 14px 18px; letter-spacing: 0.1em; text-transform: uppercase;
-      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    #player-name-input:focus {
-      border-color: var(--cyan); box-shadow: 0 0 12px #00ffe733;
-    }
-    #player-name-input::placeholder { color: #333; text-transform: uppercase; }
-
-    #color-picker {
-      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
-    }
-    .color-opt {
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 2px solid transparent; cursor: pointer;
-      transition: border-color 0.15s, transform 0.15s;
-      pointer-events: all;
-    }
-    .color-opt:hover { transform: scale(1.2); }
-    .color-opt.selected { border-color: #fff; transform: scale(1.15); }
-
-    #login-btn {
-      width: 100%; background: var(--cyan); color: #000;
-      font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 900;
-      letter-spacing: 0.15em; padding: 15px; border: none; cursor: pointer;
-      text-transform: uppercase; transition: background 0.15s, box-shadow 0.15s;
-      pointer-events: all;
-    }
-    #login-btn:hover { background: #fff; box-shadow: 0 0 20px #00ffe7aa; }
-
-    #login-controls {
-      margin-top: 28px; font-size: 11px; color: #333;
-      letter-spacing: 0.12em; line-height: 2;
-    }
-    #login-controls span { color: var(--cyan); }
-
-    /* Scanlines */
-    body::after {
-      content: '';
-      position: fixed; inset: 0;
-      background: repeating-linear-gradient(
-        0deg, transparent, transparent 2px,
-        rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
-      );
-      pointer-events: none; z-index: 50;
-    }
-
-    /* Weapon sway */
-    #weapon {
-      position: fixed; bottom: 0; right: 60px;
-      width: 180px; pointer-events: none; z-index: 9;
-      transform-origin: bottom right;
-      transition: transform 0.08s ease-out;
-    }
-
-    /* Minimap canvas */
-    #mm-canvas { width: 140px; height: 140px; }
-  </style>
+  <link rel="stylesheet" href="fps-styles.css">
 </head>
 <body>
 
-<!-- Three.js canvas -->
-<canvas id="vlr-canvas"></canvas>
-
-<!-- HUD -->
-<div id="hud">
-  <div id="hud-top">
-    <div id="hud-name">---</div>
-    <div id="hud-title-badge">⚔ VÂN LÔ RẦN ⚔</div>
-    <div id="hud-kill-feed"></div>
-  </div>
-  <div id="hud-bottom">
-    <div id="hud-hp-block">
-      <div id="hud-hp-label">MÁU</div>
-      <div id="hud-hp-bar-wrap"><div id="hud-hp-bar"></div></div>
-      <div id="hud-hp-num">100</div>
+  <!-- HUD overlay -->
+  <div id="hud">
+    <div id="hud-top">
+      <div id="hud-name">---</div>
+      <div id="hud-kill-feed"></div>
     </div>
-    <div id="hud-coins-block">
-      <span id="hud-coins-icon">◈</span>
-      <span id="hud-coins-num">0</span>
+    <div id="hud-bottom">
+      <div id="hud-hp-block">
+        <div id="hud-hp-label">MÁU</div>
+        <div id="hud-hp-bar-wrap"><div id="hud-hp-bar"></div></div>
+        <div id="hud-hp-num">100</div>
+      </div>
+      <div id="hud-weapon-block">
+        <span id="hud-weapon-icon">🔫</span>
+        <span id="hud-weapon-name">SÚNG</span>
+      </div>
+      <div id="hud-ammo-block">
+        <span id="hud-ammo-icon">⬡</span>
+        <span id="hud-ammo-num">∞</span>
+      </div>
     </div>
-    <div id="hud-ammo-block">
-      <span id="hud-ammo-icon">⬡</span>
-      <span id="hud-ammo-num">∞</span>
+    <!-- Crosshair -->
+    <div id="crosshair">
+      <div class="ch-line ch-top"></div>
+      <div class="ch-line ch-bot"></div>
+      <div class="ch-line ch-left"></div>
+      <div class="ch-line ch-right"></div>
+      <div class="ch-dot"></div>
+    </div>
+    <!-- Damage flash -->
+    <div id="damage-flash"></div>
+    <!-- Death screen -->
+    <div id="death-screen" class="hidden">
+      <div id="death-text">ĐÃ CHẾT</div>
+      <div id="death-sub">Đang hồi sinh...</div>
+    </div>
+    <!-- Kill banner -->
+    <div id="kill-banner" class="hidden"></div>
+    <!-- Weapon model overlay (canvas rendered on top) -->
+    <canvas id="weapon-canvas"></canvas>
+  </div>
+
+  <!-- Canvas for Three.js -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Mobile Controls -->
+  <div id="mobile-controls">
+    <!-- Joystick left -->
+    <div id="joystick-zone">
+      <div id="joystick-base">
+        <div id="joystick-knob"></div>
+      </div>
+    </div>
+    <!-- Right side buttons -->
+    <div id="right-buttons">
+      <button id="btn-fire" class="mob-btn fire-btn">🔥</button>
+      <button id="btn-jump" class="mob-btn jump-btn">↑</button>
+      <button id="btn-weapon" class="mob-btn weapon-btn">⚔</button>
+    </div>
+    <!-- Look zone (right side drag) -->
+    <div id="look-zone"></div>
+  </div>
+
+  <!-- Login overlay -->
+  <div id="login-overlay">
+    <div id="login-box">
+      <div id="login-title">VÂN LÔ<span>RẦN</span></div>
+      <div id="login-sub">Chiến Trường 3D · Nhiều Người Chơi</div>
+      <div id="login-form">
+        <input id="player-name-input" type="text" maxlength="10" placeholder="TÊN CHIẾN SĨ (tối đa 10 ký tự)" autocomplete="off" />
+        <button id="login-btn">VÀO CHIẾN TRƯỜNG</button>
+      </div>
+      <div id="login-controls">
+        WASD · Di chuyển &nbsp;|&nbsp; Chuột · Nhìn &amp; Bắn &nbsp;|&nbsp; 1/2 · Chuyển vũ khí
+        <br>Phím Cách · Nhảy &nbsp;|&nbsp; Click canvas để khóa chuột
+      </div>
     </div>
   </div>
-  <div id="crosshair">
-    <div class="ch-line ch-top"></div>
-    <div class="ch-line ch-bot"></div>
-    <div class="ch-line ch-left"></div>
-    <div class="ch-line ch-right"></div>
-    <div class="ch-dot"></div>
-  </div>
-  <div id="damage-flash"></div>
-  <div id="death-screen" class="hidden">
-    <div id="death-text">NGƯƠI ĐÃ CHẾT</div>
-    <div id="death-sub">Hồi sinh sau 3 giây...</div>
-  </div>
-  <div id="kill-banner" class="hidden"></div>
-</div>
 
-<!-- Sprites -->
-<div id="sprites-layer"></div>
-
-<!-- Minimap -->
-<div id="minimap">
-  <canvas id="mm-canvas" width="140" height="140"></canvas>
-</div>
-
-<!-- Login overlay -->
-<div id="login-overlay">
-  <div id="login-box">
-    <div id="login-title">VÂN LÔ <span class="accent">RẦN</span></div>
-    <div id="login-sub">Chiến Trường 3D · <span class="highlight">Three.js Engine</span> · Firebase</div>
-    <div id="login-form">
-      <input id="player-name-input" type="text" maxlength="10"
-        placeholder="TÊN LÍNH (tối đa 10 ký tự)" autocomplete="off"/>
-      <div id="color-picker"></div>
-      <button id="login-btn">⚔ VÀO CHIẾN TRƯỜNG</button>
-    </div>
-    <div id="login-controls">
-      <span>WASD</span> · Di chuyển &nbsp;|&nbsp;
-      <span>Chuột</span> · Nhìn &amp; Bắn &nbsp;|&nbsp;
-      <span>Click</span> canvas để khóa chuột
-    </div>
-  </div>
-</div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyAq52d5zrc5rN6UFflwb22bJD9GSjdS0ts",
-    authDomain: "vvss-b7a49.firebaseapp.com",
-    databaseURL: "https://vvss-b7a49-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "vvss-b7a49",
-    storageBucket: "vvss-b7a49.firebasestorage.app",
-    messagingSenderId: "562837285603",
-    appId: "1:562837285603:web:e75d7a983e1ef644c9b3d6"
-  };
-  firebase.initializeApp(firebaseConfig);
-</script>
-<!-- Three.js r128 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="vlr-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAq52d5zrc5rN6UFflwb22bJD9GSjdS0ts",
+      authDomain: "vvss-b7a49.firebaseapp.com",
+      databaseURL: "https://vvss-b7a49-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "vvss-b7a49",
+      storageBucket: "vvss-b7a49.firebasestorage.app",
+      messagingSenderId: "562837285603",
+      appId: "1:562837285603:web:e75d7a983e1ef644c9b3d6"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="fps-app.js"></script>
 </body>
 </html>
